@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +9,7 @@ import '../services/workout_api.dart';
 import '../services/progress_service.dart';
 import 'course_list_screen.dart';
 import '../models/workout.dart';
+import 'multi_workout_session_screen.dart';
 import 'workout_session_screen.dart';
 import 'login_page.dart';
 
@@ -68,7 +71,9 @@ class FitoraService {
 }
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+  const DashboardPage({super.key, this.progressService});
+
+  final ProgressService? progressService;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -87,16 +92,18 @@ class _DashboardPageState extends State<DashboardPage> {
 
   int _selectedIndex = _dashboardIndex;
   String _selectedCategory = 'All';
+  final List<String> _selectedWorkoutIds = [];
   final _searchController = TextEditingController();
   List<FitoraService> _services = [];
   List<Workout> _workouts = [];
-  final ProgressService _progressService = ProgressService();
+  late final ProgressService _progressService;
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _progressService = widget.progressService ?? ProgressService();
     _loadCatalog();
   }
 
@@ -185,6 +192,52 @@ class _DashboardPageState extends State<DashboardPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Workout completed. Great work!')),
+    );
+  }
+
+  void _toggleWorkoutSelection(Workout workout) {
+    setState(() {
+      if (_selectedWorkoutIds.contains(workout.id)) {
+        _selectedWorkoutIds.remove(workout.id);
+      } else if (_selectedWorkoutIds.length < 3) {
+        _selectedWorkoutIds.add(workout.id);
+      }
+    });
+  }
+
+  Future<void> _startSelectedWorkouts() async {
+    if (_selectedWorkoutIds.length != 3) return;
+    final selectedWorkouts = _selectedWorkoutIds
+        .map((id) => _workouts.firstWhere((workout) => workout.id == id))
+        .toList();
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => MultiWorkoutSessionScreen(workouts: selectedWorkouts),
+      ),
+    );
+    if (!mounted || completed != true) return;
+
+    try {
+      for (final workout in selectedWorkouts) {
+        await _progressService.createRecord(
+          title: workout.title,
+          durationMinutes: workout.durationMinutes,
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save workout history: $error')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(_selectedWorkoutIds.clear);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Workouts completed and saved to your progress history.'),
+      ),
     );
   }
 
@@ -720,7 +773,9 @@ class _DashboardPageState extends State<DashboardPage> {
             TextField(
               controller: durationController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Duration (minutes)'),
+              decoration: const InputDecoration(
+                labelText: 'Duration (minutes)',
+              ),
             ),
           ],
         ),
@@ -788,10 +843,7 @@ class _DashboardPageState extends State<DashboardPage> {
       );
       return;
     }
-    await _progressService.updateRecord(
-      record.id,
-      durationMinutes: duration,
-    );
+    await _progressService.updateRecord(record.id, durationMinutes: duration);
   }
 
   Widget _statCard(
@@ -902,86 +954,115 @@ class _DashboardPageState extends State<DashboardPage> {
               ));
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadCatalog,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(18, 19, 18, 20),
-            decoration: BoxDecoration(
-              color: forest,
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF214D43), forest],
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadCatalog,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(18, 19, 18, 20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'MOVE WITH PURPOSE',
-                    style: TextStyle(
-                      color: Color(0xFFD8E8DC),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
+                    color: forest,
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF214D43), forest],
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Workout programs',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 25,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'MOVE WITH PURPOSE',
+                          style: TextStyle(
+                            color: Color(0xFFD8E8DC),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Workout programs',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 25,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Choose 3 workouts, then mark each one complete yourself.',
+                        style: TextStyle(
+                          color: Color(0xFFD5E1DA),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 5),
-                const Text(
-                  'Choose your focus. Select 3 exercises to begin.',
-                  style: TextStyle(color: Color(0xFFD5E1DA), fontSize: 12),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  textInputAction: TextInputAction.search,
+                  decoration: _searchDecoration('Search workouts'),
                 ),
+                const SizedBox(height: 14),
+                _categoryFilters(categories),
+                const SizedBox(height: 18),
+                if (_errorMessage != null) _errorBanner(),
+                if (_isLoading)
+                  const Center(child: CircularProgressIndicator()),
+                if (!_isLoading && searchedWorkouts.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      query.isEmpty
+                          ? 'No workouts match this category.'
+                          : 'No workouts match "$query".',
+                    ),
+                  ),
+                ...searchedWorkouts.map(_workoutCard),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            textInputAction: TextInputAction.search,
-            decoration: _searchDecoration('Search workouts'),
-          ),
-          const SizedBox(height: 14),
-          _categoryFilters(categories),
-          const SizedBox(height: 18),
-          if (_errorMessage != null) _errorBanner(),
-          if (_isLoading) const Center(child: CircularProgressIndicator()),
-          if (!_isLoading && searchedWorkouts.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                query.isEmpty
-                    ? 'No workouts match this category.'
-                    : 'No workouts match "$query".',
+        ),
+        SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              key: const ValueKey('start-selected-workouts'),
+              onPressed: _selectedWorkoutIds.length == 3
+                  ? _startSelectedWorkouts
+                  : null,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: Text(
+                _selectedWorkoutIds.length == 3
+                    ? 'Start selected workouts'
+                    : 'Select 3 workouts (${_selectedWorkoutIds.length}/3)',
               ),
             ),
-          ...searchedWorkouts.map(_workoutCard),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1185,6 +1266,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _workoutCard(Workout workout) {
+    final isSelected = _selectedWorkoutIds.contains(workout.id);
+    final selectionLimitReached =
+        _selectedWorkoutIds.length == 3 && !isSelected;
     return Card(
       key: ValueKey('workout-card-${workout.id}'),
       elevation: 2,
@@ -1194,7 +1278,10 @@ class _DashboardPageState extends State<DashboardPage> {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: const BorderSide(color: Color(0xFFECEAE4)),
+        side: BorderSide(
+          color: isSelected ? forest : const Color(0xFFECEAE4),
+          width: isSelected ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1292,7 +1379,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => _startWorkout(workout: workout),
+                    onPressed: selectionLimitReached
+                        ? null
+                        : () => _toggleWorkoutSelection(workout),
                     style: FilledButton.styleFrom(
                       backgroundColor: forest,
                       foregroundColor: Colors.white,
@@ -1301,8 +1390,18 @@ class _DashboardPageState extends State<DashboardPage> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                     ),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Start workout'),
+                    icon: Icon(
+                      isSelected
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.add_circle_outline_rounded,
+                    ),
+                    label: Text(
+                      isSelected
+                          ? 'Selected (${_selectedWorkoutIds.length}/3)'
+                          : selectionLimitReached
+                          ? 'Selection limit reached'
+                          : 'Select workout',
+                    ),
                   ),
                 ),
               ],

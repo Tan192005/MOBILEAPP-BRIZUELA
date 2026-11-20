@@ -382,7 +382,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                   Text(
                     _isStarted
                         ? '$completedCount of ${_selectedExercises.length} exercises complete'
-                        : 'Choose ${_selectionLimit == 1 ? '1 exercise' : '$_selectionLimit exercises'} to start (${_selectedExercises.length}/${_selectionLimit} selected)',
+                        : 'Choose ${_selectionLimit == 1 ? '1 exercise' : '$_selectionLimit exercises'} to start (${_selectedExercises.length}/$_selectionLimit selected)',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 if (_isStarted && _selectedExercises.isNotEmpty) ...[
@@ -473,7 +473,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                             : 'Complete all exercises to finish')
                       : (couldStartWorkout
                             ? 'Start workout'
-                            : 'Select ${selectionLimit == 1 ? '1 exercise' : '${selectionLimit} exercises'} to start'),
+                            : 'Select ${selectionLimit == 1 ? '1 exercise' : '$selectionLimit exercises'} to start'),
                 ),
               ),
             ),

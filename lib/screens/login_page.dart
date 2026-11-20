@@ -61,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
         MaterialPageRoute<void>(builder: (_) => const DashboardPage()),
       );
     } on FirebaseAuthException catch (error) {
-      _showAuthError(error.message ?? 'Authentication failed.');
+      _showAuthError(_authErrorMessage(error));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -80,7 +80,7 @@ class _LoginPageState extends State<LoginPage> {
         _showAuthError('Password reset instructions were sent to $email.');
       }
     } on FirebaseAuthException catch (error) {
-      _showAuthError(error.message ?? 'Could not send password reset email.');
+      _showAuthError(_authErrorMessage(error));
     }
   }
 
@@ -123,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
         MaterialPageRoute<void>(builder: (_) => const DashboardPage()),
       );
     } on FirebaseAuthException catch (error) {
-      _showAuthError(error.message ?? 'Authentication failed.');
+      _showAuthError(_authErrorMessage(error));
     } catch (error) {
       _showAuthError('Social sign-in is not configured for this app yet.');
     } finally {
@@ -135,6 +135,34 @@ class _LoginPageState extends State<LoginPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _authErrorMessage(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'invalid-password':
+      case 'invalid-login-credentials':
+        return 'Email or password is incorrect. Use REGISTER to create an account.';
+      case 'user-not-found':
+        return 'No account exists for this email. Tap REGISTER to create one.';
+      case 'email-already-in-use':
+        return 'This email is already registered. Return to LOGIN.';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 6 characters.';
+      case 'invalid-email':
+        return 'Enter a valid email address.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'too-many-requests':
+        return 'Too many attempts. Wait and try again.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection.';
+      case 'operation-not-allowed':
+        return 'Email/password authentication is disabled in Firebase.';
+      default:
+        return error.message ?? 'Authentication failed.';
+    }
   }
 
   @override
