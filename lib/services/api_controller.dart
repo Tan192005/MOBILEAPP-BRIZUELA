@@ -52,13 +52,34 @@ class ApiController {
     : _client = client ?? http.Client(),
       _ownsClient = client == null;
 
+  static const Map<String, String> _jsonHeaders = {
+    'Content-Type': 'application/json; charset=UTF-8',
+  };
+
   static final Uri productsUri = Uri.https(
     'dummyjson.com',
     '/products/category/sports-accessories',
   );
 
+  static final Uri allProductsUri = Uri.https('dummyjson.com', '/products');
+
   final http.Client _client;
   final bool _ownsClient;
+
+  static Uri productUri(int id) => Uri.https('dummyjson.com', '/products/$id');
+
+  static ApiProduct _productFromResponse(http.Response response, {String? action}) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Products API ${action ?? 'request'} returned ${response.statusCode}.');
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Products API response is not a JSON object.');
+    }
+
+    return ApiProduct.fromJson(decoded);
+  }
 
   Future<List<ApiProduct>> fetchProducts() async {
     final response = await _client.get(productsUri);
@@ -83,6 +104,57 @@ class ApiController {
     return products
         .where((product) => product.category == 'sports-accessories')
         .toList();
+  }
+
+  Future<ApiProduct> createProduct(Map<String, dynamic> productData) async {
+    final response = await _client.post(
+      allProductsUri,
+      headers: _jsonHeaders,
+      body: jsonEncode(productData),
+    );
+
+    return _productFromResponse(response, action: 'create');
+  }
+
+  Future<ApiProduct> addProduct(Map<String, dynamic> productData) async {
+    return createProduct(productData);
+  }
+
+  Future<ApiProduct> updateProduct(
+    int id,
+    Map<String, dynamic> productData,
+  ) async {
+    final response = await _client.put(
+      productUri(id),
+      headers: _jsonHeaders,
+      body: jsonEncode(productData),
+    );
+
+    return _productFromResponse(response, action: 'update');
+  }
+
+  Future<Map<String, dynamic>> deleteProduct(int id) async {
+    final response = await _client.delete(
+      productUri(id),
+      headers: _jsonHeaders,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Products API delete returned ${response.statusCode}.');
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Products API delete response is not a JSON object.',
+      );
+    }
+
+    return decoded;
+  }
+
+  Future<Map<String, dynamic>> removeProduct(int id) async {
+    return deleteProduct(id);
   }
 
   void dispose() {

@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_application_1/api_controller.dart';
-import 'package:flutter_application_1/course_model.dart';
+import 'package:flutter_application_1/models/course_model.dart';
+import 'package:flutter_application_1/services/api_controller.dart';
 import 'package:http/http.dart' as http;
 
 class _FakeHttpClient extends http.BaseClient {
