@@ -28,6 +28,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isRegisterMode = false;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
@@ -41,11 +42,29 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleSignIn() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const DashboardPage()),
-    );
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      if (_isRegisterMode) {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } else {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const DashboardPage()),
+      );
+    } on FirebaseAuthException catch (error) {
+      _showAuthError(error.message ?? 'Authentication failed.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _resetPassword() async {
@@ -126,7 +145,7 @@ class _LoginPageState extends State<LoginPage> {
         fit: StackFit.expand,
         children: [
           Image.asset(
-            'assets/images/home_gym_background.png',
+            'assets/images/image-1790068242124.png',
             key: const ValueKey('login-background-image'),
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) =>
@@ -254,7 +273,11 @@ class _LoginPageState extends State<LoginPage> {
                                           size: 20,
                                         ),
                                   label: Text(
-                                    _isLoading ? 'Signing in...' : 'LOGIN',
+                                    _isLoading
+                                        ? (_isRegisterMode
+                                            ? 'Creating account...'
+                                            : 'Signing in...')
+                                        : (_isRegisterMode ? 'REGISTER' : 'LOGIN'),
                                     style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
@@ -275,22 +298,21 @@ class _LoginPageState extends State<LoginPage> {
                               _buildSocialLogin(),
                               const SizedBox(height: 22),
                               Center(
-                                child: Text.rich(
-                                  TextSpan(
-                                    style: const TextStyle(
-                                      color: AppColors.textGrey,
-                                      fontSize: 13,
-                                    ),
-                                    children: [
-                                      const TextSpan(text: "New to Fitora? "),
-                                      TextSpan(
-                                        text: 'Your journey starts here.',
-                                        style: TextStyle(
-                                          color: AppColors.accent,
-                                          fontWeight: FontWeight.w700,
+                                child: TextButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () => setState(
+                                          () => _isRegisterMode =
+                                              !_isRegisterMode,
                                         ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    _isRegisterMode
+                                        ? 'Already have an account? LOGIN'
+                                        : 'New to Fitora? REGISTER',
+                                    style: TextStyle(
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ),

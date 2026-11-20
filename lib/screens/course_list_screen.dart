@@ -166,6 +166,129 @@ class _CourseListScreenState extends State<CourseListScreen> {
     await future;
   }
 
+  Future<void> _showApiProductDialog({ApiProduct? product}) async {
+    final titleController = TextEditingController(text: product?.title);
+    final descriptionController = TextEditingController(
+      text: product?.description,
+    );
+    final priceController = TextEditingController(
+      text: product?.price.toStringAsFixed(2),
+    );
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(product == null ? 'Create API product' : 'Update API product'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              TextField(
+                controller: priceController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Price'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(product == null ? 'Create' : 'Update'),
+          ),
+        ],
+      ),
+    );
+    if (result != true) return;
+
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
+    final price = double.tryParse(priceController.text.trim());
+    if (title.isEmpty || description.isEmpty || price == null || price <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complete all fields with valid values.')),
+      );
+      return;
+    }
+
+    final data = {
+      'title': title,
+      'description': description,
+      'price': price,
+      'category': 'sports-accessories',
+      'thumbnail': product?.thumbnail ?? '',
+    };
+    try {
+      if (product == null) {
+        await _apiController.createProduct(data);
+      } else {
+        await _apiController.updateProduct(product.id, data);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            product == null
+                ? 'Product created through the API.'
+                : 'Product updated through the API.',
+          ),
+        ),
+      );
+      await _refreshCourses();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('API operation failed: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteApiProduct(ApiProduct product) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete API product'),
+        content: Text('Delete "${product.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _apiController.deleteProduct(product.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product deleted through the API.')),
+      );
+      await _refreshCourses();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('API delete failed: $error')),
+      );
+    }
+  }
+
   List<Course> _filterCourses(List<Course> courses) {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return courses;
@@ -183,6 +306,11 @@ class _CourseListScreenState extends State<CourseListScreen> {
       appBar: AppBar(
         title: const Text('Product Catalog'),
         actions: [
+          IconButton(
+            tooltip: 'Create API product',
+            onPressed: () => _showApiProductDialog(),
+            icon: const Icon(Icons.add),
+          ),
           IconButton(
             tooltip: 'Refresh products',
             onPressed: _refreshCourses,
@@ -321,9 +449,38 @@ class _CourseListScreenState extends State<CourseListScreen> {
           ),
         ),
         isThreeLine: true,
-        trailing: Text(
-          '\$${course.cost.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '\$${course.cost.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            if (course.id > 0)
+              PopupMenuButton<String>(
+                tooltip: 'API CRUD actions',
+                onSelected: (action) {
+                  final apiProduct = ApiProduct(
+                    id: course.id,
+                    title: course.name,
+                    description: course.content,
+                    price: course.cost,
+                    category: course.category,
+                    thumbnail: course.image,
+                  );
+                  if (action == 'edit') {
+                    _showApiProductDialog(product: apiProduct);
+                  } else {
+                    _deleteApiProduct(apiProduct);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              ),
+          ],
         ),
       ),
     );

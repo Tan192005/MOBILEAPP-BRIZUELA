@@ -1,0 +1,41 @@
+[
+  {
+    "id": "fitora-strength-20",
+    "title": "20-Minute Strength",
+    "category": "Strength",
+    "durationMinutes": 20,
+    "difficulty": "Intermediate",
+    "image": "assets/images/fitness_logo.png",
+    "exercises": [
+      {"name": "Bodyweight squats", "sets": 3, "reps": "10", "targetMuscle": "Legs", "rest": "45 sec"},
+      {"name": "Incline push-ups", "sets": 3, "reps": "8", "targetMuscle": "Chest", "rest": "45 sec"},
+      {"name": "Glute bridges", "sets": 3, "reps": "12", "targetMuscle": "Glutes", "rest": "45 sec"}
+    ]
+  },
+  {
+    "id": "fitora-mobility-10",
+    "title": "10-Minute Mobility",
+    "category": "Mobility",
+    "durationMinutes": 10,
+    "difficulty": "Beginner",
+    "image": "assets/images/fitness_logo.png",
+    "exercises": [
+      {"name": "Cat-cow", "sets": 2, "reps": "8", "targetMuscle": "Spine", "rest": "20 sec"},
+      {"name": "Hip stretch", "sets": 2, "reps": "20 sec", "targetMuscle": "Hips", "rest": "20 sec"},
+      {"name": "Open-book rotations", "sets": 2, "reps": "6", "targetMuscle": "Thoracic", "rest": "20 sec"}
+    ]
+  },
+  {
+    "id": "quick",
+    "title": "Quick Full-Body Workout",
+    "category": "Full Body",
+    "durationMinutes": 15,
+    "difficulty": "Beginner",
+    "image": "assets/images/fitness_logo.png",
+    "exercises": [
+      {"name": "Bodyweight squats", "sets": 3, "reps": "10", "targetMuscle": "Legs", "rest": "30 sec"},
+      {"name": "Incline push-ups", "sets": 3, "reps": "8", "targetMuscle": "Chest", "rest": "30 sec"},
+      {"name": "Glute bridges", "sets": 3, "reps": "12", "targetMuscle": "Glutes", "rest": "30 sec"}
+    ]
+  }
+]

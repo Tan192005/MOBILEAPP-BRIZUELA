@@ -1,11 +1,14 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/workout_api.dart';
+import '../services/progress_service.dart';
 import 'course_list_screen.dart';
 import '../models/workout.dart';
 import 'workout_session_screen.dart';
+import 'login_page.dart';
 
 class FitoraService {
   final String id;
@@ -87,6 +90,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final _searchController = TextEditingController();
   List<FitoraService> _services = [];
   List<Workout> _workouts = [];
+  final ProgressService _progressService = ProgressService();
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -167,6 +171,18 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
     if (!mounted || completed != true) return;
+    try {
+      await _progressService.createRecord(
+        title: workout?.title ?? name ?? 'Workout',
+        durationMinutes: workout?.durationMinutes ?? durationMinutes ?? 20,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save progress: $error')),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Workout completed. Great work!')),
     );
@@ -280,7 +296,7 @@ class _DashboardPageState extends State<DashboardPage> {
       fit: StackFit.expand,
       children: [
         Image.asset(
-          'assets/images/home_gym_background.png',
+          'assets/images/image-1790068242124.png',
           key: const ValueKey('home-background-image'),
           fit: BoxFit.cover,
           alignment: Alignment.center,
@@ -678,6 +694,106 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+      (_) => false,
+    );
+  }
+
+  Future<void> _createProgressRecord() async {
+    final titleController = TextEditingController(text: 'Workout session');
+    final durationController = TextEditingController(text: '20');
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add progress record'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: 'Workout title'),
+            ),
+            TextField(
+              controller: durationController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Duration (minutes)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != true) return;
+
+    final title = titleController.text.trim();
+    final duration = int.tryParse(durationController.text.trim());
+    if (title.isEmpty || duration == null || duration <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a title and positive duration.')),
+      );
+      return;
+    }
+    await _progressService.createRecord(
+      title: title,
+      durationMinutes: duration,
+    );
+  }
+
+  Future<void> _editProgressRecord(WorkoutProgress record) async {
+    final controller = TextEditingController(
+      text: record.durationMinutes.toString(),
+    );
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit duration'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Duration (minutes)'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+    if (result != true) return;
+
+    final duration = int.tryParse(controller.text.trim());
+    if (duration == null || duration <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a positive duration.')),
+      );
+      return;
+    }
+    await _progressService.updateRecord(
+      record.id,
+      durationMinutes: duration,
+    );
+  }
+
   Widget _statCard(
     String value,
     String label,
@@ -931,26 +1047,85 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildProgressSection() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text(
-          'Keep your momentum.',
-          style: TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.w800,
-            color: ink,
-          ),
-        ),
-        const SizedBox(height: 18),
-        _statCard(
-          '4',
-          'sessions completed this week',
-          Icons.insights,
-          detail: 'of 5 session goal',
-          progress: 0.8,
-        ),
-      ],
+    return StreamBuilder<List<WorkoutProgress>>(
+      stream: _progressService.watchRecords(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Could not load progress: ${snapshot.error}'),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final records = snapshot.data!;
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const Text(
+              'Keep your momentum.',
+              style: TextStyle(
+                fontSize: 25,
+                fontWeight: FontWeight.w800,
+                color: ink,
+              ),
+            ),
+            const SizedBox(height: 18),
+            _statCard(
+              '${records.length}',
+              'workout sessions saved',
+              Icons.insights,
+              detail: 'stored in Firebase',
+              progress: records.isEmpty
+                  ? 0
+                  : (records.length / 5).clamp(0.0, 1.0).toDouble(),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => _createProgressRecord(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add progress record'),
+            ),
+            const SizedBox(height: 12),
+            if (records.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('Complete a workout or add a record to begin.'),
+                ),
+              ),
+            ...records.map(
+              (record) => Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: forest,
+                    child: Icon(Icons.fitness_center, color: Colors.white),
+                  ),
+                  title: Text(record.title),
+                  subtitle: Text('${record.durationMinutes} minutes'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit duration',
+                        onPressed: () => _editProgressRecord(record),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete record',
+                        onPressed: () =>
+                            _progressService.deleteRecord(record.id),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1350,6 +1525,12 @@ class _DashboardPageState extends State<DashboardPage> {
               leading: const Icon(Icons.inventory_2_outlined),
               title: const Text('API Product Catalog'),
               onTap: _openProductCatalog,
+            ),
+            const Spacer(),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: _logout,
             ),
           ],
         ),
